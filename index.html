@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Protótipo - Survivors</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <!-- Interface de Usuário -->
+        <div id="ui-layer">
+            <div id="top-bar">
+                <span id="timer">00:00</span>
+                <div id="health-bg">
+                    <div id="health-bar"></div>
+                </div>
+            </div>
+            
+            <!-- Tela de Fim de Jogo -->
+            <div id="game-over-screen" class="hidden">
+                <h1>FIM DE JOGO</h1>
+                <p>Sobreviveu por: <span id="final-time">00:00</span></p>
+                <button id="restart-btn">Tentar Novamente</button>
+            </div>
+        </div>
+
+        <!-- Tela do Jogo -->
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
