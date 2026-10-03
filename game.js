@@ -17,6 +17,109 @@ const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowLeft
 let mouseX = canvas.width / 2, mouseY = canvas.height / 2;
 let isMouseDown = false;
 
+// ==========================================
+// SISTEMA DE MENU, MÚSICA E MOBILE (MATADOR DE BOLAS)
+// ==========================================
+
+let isMobileMode = false;
+let gamePausadoNoMenu = true; // Use essa variável para travar o jogo antes de escolher a plataforma
+
+// 1. Configuração da Música (Única instância)
+const bgMusic = new Audio('assets/music/jogobosta.mp3');
+bgMusic.loop = true;
+bgMusic.volume = 0.4;
+
+// 2. Dados dos Analógicos
+const joyLeft = { active: false, id: null, x: 0, y: 0 }; // Movimento
+const joyRight = { active: false, id: null, x: 0, y: 0 }; // Tiro
+
+// 3. Lógica dos Botões do Menu
+document.getElementById('btn-computador').addEventListener('click', () => iniciarJogo(false));
+document.getElementById('btn-celular').addEventListener('click', () => iniciarJogo(true));
+
+function iniciarJogo(mobile) {
+    isMobileMode = mobile;
+    gamePausadoNoMenu = false;
+    
+    // Esconde o menu
+    document.getElementById('main-menu').style.display = 'none';
+    
+    // Mostra controles se for celular e inicia listeners
+    if (isMobileMode) {
+        document.getElementById('mobile-controls').style.display = 'block';
+        setupJoystick('base-left', 'stick-left', joyLeft);
+        setupJoystick('base-right', 'stick-right', joyRight);
+    }
+    
+    // Toca a música (como ocorreu um clique humano, o navegador permite)
+    bgMusic.play().catch(e => console.warn("Erro ao tocar música:", e));
+}
+
+// 4. Lógica de Multi-touch dos Analógicos
+function setupJoystick(baseId, stickId, joyData) {
+    const base = document.getElementById(baseId);
+    const stick = document.getElementById(stickId);
+    const maxRadius = 50; // O quão longe a bolinha pode ir
+
+    const onTouchStart = (e) => {
+        e.preventDefault();
+        const touch = e.changedTouches[0];
+        joyData.id = touch.identifier;
+        joyData.active = true;
+        updateStick(touch, base, stick, joyData, maxRadius);
+    };
+
+    const onTouchMove = (e) => {
+        e.preventDefault();
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            if (e.changedTouches[i].identifier === joyData.id) {
+                updateStick(e.changedTouches[i], base, stick, joyData, maxRadius);
+            }
+        }
+    };
+
+    const onTouchEnd = (e) => {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            if (e.changedTouches[i].identifier === joyData.id) {
+                joyData.active = false;
+                joyData.id = null;
+                joyData.x = 0;
+                joyData.y = 0;
+                stick.style.transform = `translate(-50%, -50%)`; // Volta pro centro
+            }
+        }
+    };
+
+    base.addEventListener('touchstart', onTouchStart, { passive: false });
+    base.addEventListener('touchmove', onTouchMove, { passive: false });
+    base.addEventListener('touchend', onTouchEnd);
+    base.addEventListener('touchcancel', onTouchEnd);
+}
+
+function updateStick(touch, base, stick, joyData, maxRadius) {
+    const rect = base.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+
+    let dx = touch.clientX - centerX;
+    let dy = touch.clientY - centerY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    // Limita a bolinha dentro do círculo
+    if (distance > maxRadius) {
+        dx = (dx / distance) * maxRadius;
+        dy = (dy / distance) * maxRadius;
+    }
+
+    // Normaliza valores entre -1 e 1
+    joyData.x = dx / maxRadius;
+    joyData.y = dy / maxRadius;
+
+    // Move visualmente
+    stick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+}
+// ==========================================
+
 // Estado do Jogo
 let isGameOver = false;
 let isPaused = false;
