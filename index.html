@@ -2,33 +2,35 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Adicionado controle de escala para evitar zoom no celular -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Protótipo - Survivors</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
     <!-- MENU INICIAL -->
-<div id="main-menu">
-    <h1 class="game-title">MATADOR DE BOLAS</h1>
-    <div class="menu-options">
-        <button id="btn-computador" class="menu-btn">[ COMPUTADOR ]</button>
-        <button id="btn-celular" class="menu-btn">[ CELULAR ]</button>
+    <div id="main-menu">
+        <h1 class="game-title">MATADOR DE BOLAS</h1>
+        <div class="menu-options">
+            <button id="btn-computador" class="menu-btn">[ COMPUTADOR ]</button>
+            <button id="btn-celular" class="menu-btn">[ CELULAR ]</button>
+        </div>
     </div>
-</div>
 
-<!-- CONTROLES MOBILE (Ocultos por padrão) -->
-<div id="mobile-controls" style="display: none;">
-    <!-- Analógico Esquerdo (Movimento) -->
-    <div class="joystick-base" id="base-left">
-        <div class="joystick-stick" id="stick-left"></div>
+    <!-- CONTROLES MOBILE -->
+    <div id="mobile-controls" style="display: none;">
+        <!-- Analógico Esquerdo (Movimento) -->
+        <div class="joystick-base" id="base-left">
+            <div class="joystick-stick" id="stick-left"></div>
+        </div>
+        
+        <!-- Analógico Direito (Mira/Disparo) -->
+        <div class="joystick-base" id="base-right">
+            <div class="joystick-stick" id="stick-right"></div>
+        </div>
     </div>
     
-    <!-- Analógico Direito (Mira/Disparo) -->
-    <div class="joystick-base" id="base-right">
-        <div class="joystick-stick" id="stick-right"></div>
-    </div>
-</div>
     <div id="game-container">
         <!-- Interface de Usuário -->
         <div id="ui-layer">
