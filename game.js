@@ -22,7 +22,7 @@ let isMouseDown = false;
 // ==========================================
 
 let isMobileMode = false;
-let gamePausadoNoMenu = true; // Use essa variável para travar o jogo antes de escolher a plataforma
+let gamePausadoNoMenu = true; // Trava o jogo antes de escolher a plataforma
 
 // 1. Configuração da Música (Única instância)
 const bgMusic = new Audio('assets/music/jogobosta.mp3');
@@ -40,6 +40,10 @@ document.getElementById('btn-celular').addEventListener('click', () => iniciarJo
 function iniciarJogo(mobile) {
     isMobileMode = mobile;
     gamePausadoNoMenu = false;
+    
+    // Reseta os temporizadores para não contar o tempo gasto no menu
+    gameStartTime = performance.now();
+    lastFrameTime = performance.now();
     
     // Esconde o menu
     document.getElementById('main-menu').style.display = 'none';
@@ -59,7 +63,7 @@ function iniciarJogo(mobile) {
 function setupJoystick(baseId, stickId, joyData) {
     const base = document.getElementById(baseId);
     const stick = document.getElementById(stickId);
-    const maxRadius = 50; // O quão longe a bolinha pode ir
+    const maxRadius = 50; 
 
     const onTouchStart = (e) => {
         e.preventDefault();
@@ -85,7 +89,7 @@ function setupJoystick(baseId, stickId, joyData) {
                 joyData.id = null;
                 joyData.x = 0;
                 joyData.y = 0;
-                stick.style.transform = `translate(-50%, -50%)`; // Volta pro centro
+                stick.style.transform = `translate(-50%, -50%)`; 
             }
         }
     };
@@ -105,17 +109,13 @@ function updateStick(touch, base, stick, joyData, maxRadius) {
     let dy = touch.clientY - centerY;
     const distance = Math.sqrt(dx * dx + dy * dy);
 
-    // Limita a bolinha dentro do círculo
     if (distance > maxRadius) {
         dx = (dx / distance) * maxRadius;
         dy = (dy / distance) * maxRadius;
     }
 
-    // Normaliza valores entre -1 e 1
     joyData.x = dx / maxRadius;
     joyData.y = dy / maxRadius;
-
-    // Move visualmente
     stick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
 }
 // ==========================================
@@ -172,7 +172,7 @@ class Player {
         this.lastShotTime = 0;
         this.shotCount = 0;
         this.lastBombTime = 0;
-        this.invulnTimer = 0; // Cooldown de dano para não morrer instataneamente num frame
+        this.invulnTimer = 0;
         
         // Habilidades (Stacks)
         this.skills = { piercing: 0, fireRate: 0, shotgun: 0, fireball: 0, doubleXp: 0, heal: 0, bombRain: 0 };
@@ -180,7 +180,7 @@ class Player {
 
     draw() {
         if (this.invulnTimer > 0 && Math.floor(performance.now() / 100) % 2 === 0) {
-            // Pisca quando invulnerável
+            // Pisca
         } else {
             ctx.beginPath();
             ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
@@ -193,16 +193,24 @@ class Player {
     update(dt) {
         if (this.invulnTimer > 0) this.invulnTimer -= dt;
 
-        // Movimentação
+        // ==========================================
+        // MOVIMENTAÇÃO (PC OU MOBILE)
+        // ==========================================
         let dx = 0, dy = 0;
-        if (keys.w || keys.ArrowUp) dy -= 1;
-        if (keys.s || keys.ArrowDown) dy += 1;
-        if (keys.a || keys.ArrowLeft) dx -= 1;
-        if (keys.d || keys.ArrowRight) dx += 1;
+        
+        if (isMobileMode) {
+            dx = joyLeft.x;
+            dy = joyLeft.y;
+        } else {
+            if (keys.w || keys.ArrowUp) dy -= 1;
+            if (keys.s || keys.ArrowDown) dy += 1;
+            if (keys.a || keys.ArrowLeft) dx -= 1;
+            if (keys.d || keys.ArrowRight) dx += 1;
 
-        if (dx !== 0 && dy !== 0) {
-            const length = Math.sqrt(dx * dx + dy * dy);
-            dx /= length; dy /= length;
+            if (dx !== 0 && dy !== 0) {
+                const length = Math.sqrt(dx * dx + dy * dy);
+                dx /= length; dy /= length;
+            }
         }
 
         this.x += dx * this.speed;
@@ -210,13 +218,29 @@ class Player {
         this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, this.x));
         this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, this.y));
 
-        // Tiro restrito por cooldown (Ignora autoclicker)
+        // ==========================================
+        // TIRO (PC OU MOBILE)
+        // ==========================================
         let baseCooldown = 1000;
-        // Velocidade aumentada em 15% por stack
         let currentCooldown = baseCooldown / (1 + (this.skills.fireRate * 0.15)); 
         
-        if (isMouseDown && performance.now() - this.lastShotTime >= currentCooldown) {
-            this.fireWeapon();
+        let isShooting = false;
+        let anguloTiro = 0;
+
+        if (isMobileMode) {
+            if (joyRight.active) {
+                isShooting = true;
+                anguloTiro = Math.atan2(joyRight.y, joyRight.x);
+            }
+        } else {
+            if (isMouseDown) {
+                isShooting = true;
+                anguloTiro = Math.atan2(mouseY - this.y, mouseX - this.x);
+            }
+        }
+
+        if (isShooting && performance.now() - this.lastShotTime >= currentCooldown) {
+            this.fireWeapon(anguloTiro); // Passa o ângulo para a função
             this.lastShotTime = performance.now();
         }
 
@@ -224,7 +248,6 @@ class Player {
         if (this.skills.bombRain > 0) {
             let bombInterval = Math.max(2000, 7000 - ((this.skills.bombRain - 1) * 1000));
             if (performance.now() - this.lastBombTime >= bombInterval) {
-                // Cai perto do jogador
                 let bx = this.x + (Math.random() - 0.5) * 300;
                 let by = this.y + (Math.random() - 0.5) * 300;
                 bombs.push(new Bomb(bx, by));
@@ -233,13 +256,12 @@ class Player {
         }
     }
 
-    fireWeapon() {
+    fireWeapon(baseAngle) {
         this.shotCount++;
         
         // Habilidade: Escopeta
         let projCount = 1 + this.skills.shotgun; 
-        let spread = 0.25; // Ângulo em radianos
-        let baseAngle = Math.atan2(mouseY - this.y, mouseX - this.x);
+        let spread = 0.25; 
         
         for (let i = 0; i < projCount; i++) {
             let angleOffset = 0;
@@ -260,17 +282,16 @@ class Player {
     }
 
     takeDamage(amount) {
-        if (this.invulnTimer > 0) return; // iframes
+        if (this.invulnTimer > 0) return; 
         
         this.health -= amount;
-        this.invulnTimer = 300; // 300ms de invulnerabilidade
+        this.invulnTimer = 300; 
         updateUI();
 
         if (this.health <= 0) endGame();
     }
 
     addXp(amount) {
-        // Habilidade: XP em Dobro (aplica no momento da coleta)
         let multiplier = Math.pow(2, this.skills.doubleXp);
         this.xp += (amount * multiplier);
         
@@ -299,9 +320,8 @@ class Projectile {
         this.velX = Math.cos(angle) * this.speed;
         this.velY = Math.sin(angle) * this.speed;
         
-        // Habilidade: Bala Perfurante
-        this.piercesLeft = player.skills.piercing * 2; // Lv 1 = 2 atravessamentos, etc.
-        this.hitEnemies = new Set(); // Evita bater no mesmo inimigo várias vezes no mesmo frame
+        this.piercesLeft = player.skills.piercing * 2; 
+        this.hitEnemies = new Set(); 
     }
 
     draw() {
@@ -324,7 +344,7 @@ class Fireball extends Projectile {
         this.speed = 5;
         this.color = '#ff5722';
         this.damageMultiplier = 3; 
-        this.piercesLeft = 999; // Bola de fogo atravessa tudo
+        this.piercesLeft = 999; 
     }
 }
 
@@ -346,7 +366,7 @@ class EnemyProjectile {
     update() {
         this.x += this.velX; this.y += this.velY;
         if (Math.hypot(this.x - player.x, this.y - player.y) < this.radius + player.radius) {
-            player.takeDamage(12); // Causa 20% mais que inimigo normal
+            player.takeDamage(12); 
             this.markedForDeletion = true;
         }
         if (this.x < -50 || this.x > canvas.width + 50 || this.y < -50 || this.y > canvas.height + 50) this.markedForDeletion = true;
@@ -360,7 +380,7 @@ class Enemy {
         this.speed = 1.2 + Math.random() * 0.8;
         this.color = '#e57373';
         this.damage = 10;
-        this.hp = 10; // Morre com 1 tiro normal do player
+        this.hp = 10;
         this.xpDrop = 5;
         this.markedForDeletion = false;
     }
@@ -394,18 +414,17 @@ class Enemy {
 class Boss extends Enemy {
     constructor(x, y) {
         super(x, y);
-        this.radius = 15; // 25% maior
+        this.radius = 15; 
         this.speed = 1.3;
         this.color = '#b71c1c';
-        this.damage = 15; // 50% mais dano
-        this.maxHp = 60; // Precisa de vários tiros
+        this.damage = 15; 
+        this.maxHp = 60; 
         this.hp = this.maxHp;
         this.xpDrop = 25;
     }
 
     draw() {
         super.draw();
-        // Barra de Vida do Chefe
         ctx.fillStyle = '#000';
         ctx.fillRect(this.x - 15, this.y - 22, 30, 4);
         ctx.fillStyle = '#f44336';
@@ -416,10 +435,10 @@ class Boss extends Enemy {
 class MiniBoss extends Enemy {
     constructor(x, y) {
         super(x, y);
-        this.radius = 12; // Será desenhado como quadrado
-        this.speed = 0; // Fica parado
+        this.radius = 12; 
+        this.speed = 0; 
         this.color = '#9c27b0';
-        this.hp = 20; // Exatamente 2 tiros (dano do player = 10)
+        this.hp = 20; 
         this.xpDrop = 15;
         this.shootTimer = 0;
     }
@@ -430,9 +449,8 @@ class MiniBoss extends Enemy {
     }
 
     update(dt) {
-        // Não persegue, apenas atira
         this.shootTimer += dt;
-        if (this.shootTimer >= 2000) { // A cada 2s
+        if (this.shootTimer >= 2000) { 
             this.shootTimer = 0;
             enemyProjectiles.push(new EnemyProjectile(this.x, this.y, player.x, player.y));
         }
@@ -461,17 +479,15 @@ class XPGem {
 class Bomb {
     constructor(x, y) {
         this.x = x; this.y = y;
-        this.timer = 1500; // Demora 1.5s pra cair
-        this.radius = 70; // Área de dano
+        this.timer = 1500; 
+        this.radius = 70; 
         this.markedForDeletion = false;
     }
     draw() {
-        // Retícula no chão
         ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(255, 0, 0, 0.15)'; ctx.fill();
         ctx.strokeStyle = '#f44336'; ctx.stroke();
         
-        // Indicador caindo
         ctx.beginPath();
         ctx.arc(this.x, this.y, Math.max(2, this.timer/100), 0, Math.PI * 2);
         ctx.fillStyle = '#ff9800'; ctx.fill();
@@ -479,7 +495,6 @@ class Bomb {
     update(dt) {
         this.timer -= dt;
         if (this.timer <= 0) {
-            // Explosão (Dano em Área)
             enemies.forEach(e => {
                 if (Math.hypot(e.x - this.x, e.y - this.y) <= this.radius + e.radius) {
                     e.takeDamage(50);
@@ -502,7 +517,6 @@ function spawnEnemy() {
         y = Math.random() < 0.5 ? -30 : canvas.height + 30;
     }
 
-    // Chance de Mini-chefe após 1:20 (80 segundos)
     if (survivalTime >= 80 && Math.random() < 0.10) {
         enemies.push(new MiniBoss(x, y));
     } else {
@@ -511,20 +525,17 @@ function spawnEnemy() {
 }
 
 function updateUI() {
-    // Tempo e Nível
     const m = Math.floor(survivalTime / 60).toString().padStart(2, '0');
     const s = Math.floor(survivalTime % 60).toString().padStart(2, '0');
     timerElement.innerText = `${m}:${s}`;
     levelDisplay.innerText = `Nível: ${player.level}`;
 
-    // Barras
     const hpPercent = Math.max(0, (player.health / player.maxHealth) * 100);
     healthBar.style.width = hpPercent + '%';
     
     const xpPercent = Math.min(100, (player.xp / player.xpNextLevel) * 100);
     xpBar.style.width = xpPercent + '%';
     
-    // Lista de Habilidades Adquiridas
     skillsListUI.innerHTML = '';
     for (let key in player.skills) {
         if (player.skills[key] > 0) {
@@ -540,7 +551,6 @@ function triggerLevelUp() {
     levelUpScreen.classList.remove('hidden');
     cardsContainer.innerHTML = '';
 
-    // Sorteia 3 habilidades distintas
     let keys = Object.keys(SKILLS_DB).sort(() => 0.5 - Math.random());
     let choices = keys.slice(0, 3);
 
@@ -563,7 +573,6 @@ function triggerLevelUp() {
 function selectSkill(key) {
     player.skills[key]++;
     
-    // Efeito imediato de Cura
     if (key === 'heal') {
         player.health = Math.min(player.maxHealth, player.health + (player.maxHealth * 0.10));
     }
@@ -571,11 +580,11 @@ function selectSkill(key) {
     player.pendingLevelUps--;
     
     if (player.pendingLevelUps > 0) {
-        triggerLevelUp(); // Roda de novo se passou mais de um nível de uma vez
+        triggerLevelUp(); 
     } else {
         levelUpScreen.classList.add('hidden');
         isPaused = false;
-        lastFrameTime = performance.now(); // Evita pulo no delta time
+        lastFrameTime = performance.now(); 
     }
     updateUI();
 }
@@ -583,6 +592,14 @@ function selectSkill(key) {
 // ================= LOOP DO JOGO =================
 
 function gameLoop(timestamp) {
+    // -----------------------------------------------------
+    // Trava do Menu Inicial (Não roda nada se não escolheu a plataforma)
+    if (gamePausadoNoMenu) {
+        requestAnimationFrame(gameLoop);
+        return;
+    }
+    // -----------------------------------------------------
+
     if (isGameOver) return;
     
     if (isPaused) {
@@ -595,7 +612,6 @@ function gameLoop(timestamp) {
     survivalTime = (timestamp - gameStartTime) / 1000;
     updateUI();
 
-    // Spawn Inimigos Normais e Mini-chefes
     currentSpawnRate = Math.max(300, 1000 - survivalTime * 8); 
     spawnTimer += dt;
     if (spawnTimer > currentSpawnRate) {
@@ -603,17 +619,13 @@ function gameLoop(timestamp) {
         spawnTimer = 0;
     }
 
-    // Spawn Chefe Normal (A cada 40s)
     if (survivalTime >= nextBossTime) {
-        // Nasce um pouco mais longe
         enemies.push(new Boss(canvas.width + 50, canvas.height / 2));
         nextBossTime += 40;
     }
 
-    // Limpeza de Tela
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Atualização e Desenho das Entidades
     xpGems.forEach(xp => { xp.update(); xp.draw(); });
     bombs.forEach(b => { b.update(dt); b.draw(); });
     
@@ -629,7 +641,7 @@ function gameLoop(timestamp) {
 
         projectiles.forEach(proj => {
             if (proj.markedForDeletion || enemy.markedForDeletion) return;
-            if (proj.hitEnemies.has(enemy)) return; // Já bateu neste frame/tiro
+            if (proj.hitEnemies.has(enemy)) return; 
             
             const dist = Math.hypot(proj.x - enemy.x, proj.y - enemy.y);
             if (dist < enemy.radius + proj.radius) {
@@ -647,7 +659,6 @@ function gameLoop(timestamp) {
         });
     });
 
-    // Limpeza de arrays (remove objetos mortos)
     enemies = enemies.filter(e => !e.markedForDeletion);
     projectiles = projectiles.filter(p => !p.markedForDeletion);
     enemyProjectiles = enemyProjectiles.filter(p => !p.markedForDeletion);
@@ -668,7 +679,7 @@ canvas.addEventListener('mousemove', (e) => {
 });
 canvas.addEventListener('mousedown', () => isMouseDown = true);
 canvas.addEventListener('mouseup', () => isMouseDown = false);
-canvas.addEventListener('mouseleave', () => isMouseDown = false); // Evita atirar sozinho se sair da tela
+canvas.addEventListener('mouseleave', () => isMouseDown = false); 
 
 // ================= FLUXO GERAL =================
 
@@ -689,9 +700,12 @@ function initGame() {
     gameOverScreen.classList.add('hidden');
     levelUpScreen.classList.add('hidden');
     
+    // Deixamos os timers como referência, mas o `iniciarJogo` resetará isso depois.
     gameStartTime = performance.now();
     lastFrameTime = performance.now();
     updateUI();
+    
+    // Dá partida no loop de renderização (que ficará travado se estiver no menu)
     requestAnimationFrame(gameLoop);
 }
 
@@ -702,7 +716,13 @@ function endGame() {
     document.getElementById('final-level').innerText = player.level;
 }
 
-restartBtn.addEventListener('click', initGame);
+// Se perder, no restart precisa recomeçar o tempo e voltar ao mobile/pc correto
+restartBtn.addEventListener('click', () => {
+    initGame();
+    // Ao reiniciar, o menu não volta, então precisamos forçar o reset dos timers aqui.
+    gameStartTime = performance.now();
+    lastFrameTime = performance.now();
+});
 
 // Inicia o jogo
 initGame();
