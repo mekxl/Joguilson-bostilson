@@ -22,18 +22,15 @@ let isMouseDown = false;
 // ==========================================
 
 let isMobileMode = false;
-let gamePausadoNoMenu = true; // Trava o jogo antes de escolher a plataforma
+let gamePausadoNoMenu = true; 
 
-// 1. Configuração da Música (Única instância)
 const bgMusic = new Audio('assets/music/jogobosta.mp3');
 bgMusic.loop = true;
 bgMusic.volume = 0.4;
 
-// 2. Dados dos Analógicos
-const joyLeft = { active: false, id: null, x: 0, y: 0 }; // Movimento
-const joyRight = { active: false, id: null, x: 0, y: 0 }; // Tiro
+const joyLeft = { active: false, id: null, x: 0, y: 0 };
+const joyRight = { active: false, id: null, x: 0, y: 0 };
 
-// 3. Lógica dos Botões do Menu
 document.getElementById('btn-computador').addEventListener('click', () => iniciarJogo(false));
 document.getElementById('btn-celular').addEventListener('click', () => iniciarJogo(true));
 
@@ -41,25 +38,20 @@ function iniciarJogo(mobile) {
     isMobileMode = mobile;
     gamePausadoNoMenu = false;
     
-    // Reseta os temporizadores para não contar o tempo gasto no menu
     gameStartTime = performance.now();
     lastFrameTime = performance.now();
     
-    // Esconde o menu
     document.getElementById('main-menu').style.display = 'none';
     
-    // Mostra controles se for celular e inicia listeners
     if (isMobileMode) {
         document.getElementById('mobile-controls').style.display = 'block';
         setupJoystick('base-left', 'stick-left', joyLeft);
         setupJoystick('base-right', 'stick-right', joyRight);
     }
     
-    // Toca a música (como ocorreu um clique humano, o navegador permite)
     bgMusic.play().catch(e => console.warn("Erro ao tocar música:", e));
 }
 
-// 4. Lógica de Multi-touch dos Analógicos
 function setupJoystick(baseId, stickId, joyData) {
     const base = document.getElementById(baseId);
     const stick = document.getElementById(stickId);
@@ -118,36 +110,37 @@ function updateStick(touch, base, stick, joyData, maxRadius) {
     joyData.y = dy / maxRadius;
     stick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
 }
-// ==========================================
 
-// Estado do Jogo
+// ==========================================
+// ESTADO DO JOGO E ENTIDADES
+// ==========================================
 let isGameOver = false;
 let isPaused = false;
 let gameStartTime = 0;
-let survivalTime = 0; // em segundos
+let survivalTime = 0; 
 let lastFrameTime = 0;
-
 let spawnTimer = 0;
 let currentSpawnRate = 1000; 
-let nextBossTime = 40; // Chefes normais a cada 40s
+let nextBossTime = 40; 
 
-// Entidades
 let player;
 let enemies = [];
 let projectiles = [];
 let enemyProjectiles = [];
 let xpGems = [];
 let bombs = [];
+let explosions = [];
 
-// ================= DADOS DE HABILIDADES =================
 const SKILLS_DB = {
-    piercing: { name: "Bala Perfurante", desc: "Seu tiro atravessa inimigos. Mais stacks = mais perfurações." },
-    fireRate: { name: "Velocidade de Tiro", desc: "Aumenta a velocidade de disparo em 15% por stack." },
-    shotgun:  { name: "Escopeta", desc: "Dispara tiros extras num formato de cone." },
-    fireball: { name: "Bola de Fogo", desc: "Lança uma bola de fogo a cada X disparos. Diminui o intervalo por stack." },
-    doubleXp: { name: "XP em Dobro", desc: "Dobra a quantidade de XP coletado no chão." },
-    heal:     { name: "Recuperar Vida", desc: "Recupera 10% da vida máxima instantaneamente." },
-    bombRain: { name: "Chuva de Bombas", desc: "Cai uma bomba no mapa a cada X segundos." }
+    piercing: { name: "Bala Perfurante", desc: "Seu tiro atravessa até 2 inimigos. +2 acertos por stack." },
+    fireRate: { name: "Velocidade de Tiro", desc: "Aumenta a velocidade de disparo em +15% por stack." },
+    shotgun:  { name: "Escopeta", desc: "Dispara tiros extras simultâneos em formato de cone." },
+    fireball: { name: "Bola de Fogo", desc: "Lança uma bola de fogo a cada X disparos." },
+    doubleXp: { name: "XP em Dobro", desc: "Dobra a quantidade de XP deixada pelos inimigos." },
+    heal:     { name: "Recuperar Vida", desc: "Recupera 10% da vida máxima imediatamente." },
+    bombRain: { name: "Chuva de Bombas", desc: "Cai uma bomba periodicamente, causando dano em área." },
+    dragon:   { name: "Dragão (Pet)", desc: "Um ajudante que persegue e atira nos inimigos." },
+    bazooka:  { name: "Bazuca", desc: "Seus projéteis causam explosões em área ao acertar." }
 };
 
 // ================= CLASSES =================
@@ -161,26 +154,25 @@ class Player {
         this.health = 100;
         this.color = '#4fc3f7';
         
-        // Progressão
         this.level = 0;
         this.xp = 0;
         this.xpNextLevel = 25;
         this.pendingLevelUps = 0;
         
-        // Combate
         this.damage = 10;
         this.lastShotTime = 0;
         this.shotCount = 0;
         this.lastBombTime = 0;
         this.invulnTimer = 0;
         
-        // Habilidades (Stacks)
-        this.skills = { piercing: 0, fireRate: 0, shotgun: 0, fireball: 0, doubleXp: 0, heal: 0, bombRain: 0 };
+        // Habilidades
+        this.skills = { piercing: 0, fireRate: 0, shotgun: 0, fireball: 0, doubleXp: 0, heal: 0, bombRain: 0, dragon: 0, bazooka: 0 };
+        this.pet = null;
     }
 
     draw() {
         if (this.invulnTimer > 0 && Math.floor(performance.now() / 100) % 2 === 0) {
-            // Pisca
+            // Pisca invulnerável
         } else {
             ctx.beginPath();
             ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
@@ -193,20 +185,14 @@ class Player {
     update(dt) {
         if (this.invulnTimer > 0) this.invulnTimer -= dt;
 
-        // ==========================================
-        // MOVIMENTAÇÃO (PC OU MOBILE)
-        // ==========================================
         let dx = 0, dy = 0;
-        
         if (isMobileMode) {
-            dx = joyLeft.x;
-            dy = joyLeft.y;
+            dx = joyLeft.x; dy = joyLeft.y;
         } else {
             if (keys.w || keys.ArrowUp) dy -= 1;
             if (keys.s || keys.ArrowDown) dy += 1;
             if (keys.a || keys.ArrowLeft) dx -= 1;
             if (keys.d || keys.ArrowRight) dx += 1;
-
             if (dx !== 0 && dy !== 0) {
                 const length = Math.sqrt(dx * dx + dy * dy);
                 dx /= length; dy /= length;
@@ -218,12 +204,9 @@ class Player {
         this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, this.x));
         this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, this.y));
 
-        // ==========================================
-        // TIRO (PC OU MOBILE)
-        // ==========================================
+        // Velocidade de disparo controlada rigorosamente aqui
         let baseCooldown = 1000;
         let currentCooldown = baseCooldown / (1 + (this.skills.fireRate * 0.15)); 
-        
         let isShooting = false;
         let anguloTiro = 0;
 
@@ -240,7 +223,7 @@ class Player {
         }
 
         if (isShooting && performance.now() - this.lastShotTime >= currentCooldown) {
-            this.fireWeapon(anguloTiro); // Passa o ângulo para a função
+            this.fireWeapon(anguloTiro);
             this.lastShotTime = performance.now();
         }
 
@@ -253,6 +236,12 @@ class Player {
                 bombs.push(new Bomb(bx, by));
                 this.lastBombTime = performance.now();
             }
+        }
+
+        // Habilidade: Dragão Pet
+        if (this.skills.dragon > 0) {
+            if (!this.pet) this.pet = new Dragon(this.x, this.y);
+            this.pet.update(dt);
         }
     }
 
@@ -268,12 +257,12 @@ class Player {
             if (projCount > 1) {
                 angleOffset = - (spread * (projCount - 1)) / 2 + (i * spread);
             }
-            projectiles.push(new Projectile(this.x, this.y, baseAngle + angleOffset));
+            projectiles.push(new Projectile(this.x, this.y, baseAngle + angleOffset, true));
         }
 
-        // Habilidade: Bola de Fogo
+        // Habilidade: Bola de Fogo (Gera uma aleatória sem depender da direção escolhida)
         if (this.skills.fireball > 0) {
-            let fireballRequirement = Math.max(1, 7 - (this.skills.fireball - 1));
+            let fireballRequirement = Math.max(1, 8 - this.skills.fireball);
             if (this.shotCount % fireballRequirement === 0) {
                 let randomAngle = Math.random() * Math.PI * 2;
                 projectiles.push(new Fireball(this.x, this.y, randomAngle));
@@ -283,15 +272,14 @@ class Player {
 
     takeDamage(amount) {
         if (this.invulnTimer > 0) return; 
-        
         this.health -= amount;
         this.invulnTimer = 300; 
         updateUI();
-
         if (this.health <= 0) endGame();
     }
 
     addXp(amount) {
+        // Multiplicador do XP em Dobro (0 stacks = 1x, 1 = 2x, 2 = 4x...)
         let multiplier = Math.pow(2, this.skills.doubleXp);
         this.xp += (amount * multiplier);
         
@@ -301,16 +289,55 @@ class Player {
             this.xpNextLevel = Math.round(this.xpNextLevel * 1.1);
             this.pendingLevelUps++;
         }
-
-        if (this.pendingLevelUps > 0 && !isPaused) {
-            triggerLevelUp();
-        }
+        if (this.pendingLevelUps > 0 && !isPaused) triggerLevelUp();
         updateUI();
     }
 }
 
+// O Pet Dragão
+class Dragon {
+    constructor(x, y) {
+        this.x = x; this.y = y;
+        this.size = 12;
+        this.color = '#ffeb3b';
+        this.lastShot = 0;
+    }
+    update(dt) {
+        // Segue o jogador (com leve atraso/inércia para ficar charmoso)
+        this.x += (player.x - this.x) * 0.05;
+        this.y += (player.y - this.y) * 0.05;
+
+        // Ataca o inimigo mais próximo
+        let attackSpeedMod = 1 + ((player.skills.dragon - 1) * 0.25);
+        let currentCooldown = 2000 / attackSpeedMod;
+
+        if (performance.now() - this.lastShot >= currentCooldown) {
+            let target = this.getNearestEnemy();
+            if (target) {
+                let angle = Math.atan2(target.y - this.y, target.x - this.x);
+                projectiles.push(new DragonProjectile(this.x, this.y, angle));
+                this.lastShot = performance.now();
+            }
+        }
+    }
+    getNearestEnemy() {
+        let nearest = null;
+        let minDist = Infinity;
+        enemies.forEach(e => {
+            let d = Math.hypot(this.x - e.x, this.y - e.y);
+            if (d < minDist) { minDist = d; nearest = e; }
+        });
+        return nearest;
+    }
+    draw() {
+        // Por enquanto usando um quadrado distinto para o Dragão
+        ctx.fillStyle = this.color;
+        ctx.fillRect(this.x - this.size/2, this.y - this.size/2, this.size, this.size);
+    }
+}
+
 class Projectile {
-    constructor(x, y, angle) {
+    constructor(x, y, angle, isPlayerWeapon = false) {
         this.x = x; this.y = y;
         this.radius = 5;
         this.speed = 7;
@@ -320,15 +347,16 @@ class Projectile {
         this.velX = Math.cos(angle) * this.speed;
         this.velY = Math.sin(angle) * this.speed;
         
-        this.piercesLeft = player.skills.piercing * 2; 
+        // Habilidade: Bala Perfurante (0 stacks = 1 hit, 1 stack = 2 hits, 2 stacks = 4 hits)
+        this.hitsLeft = player.skills.piercing > 0 ? player.skills.piercing * 2 : 1;
         this.hitEnemies = new Set(); 
+        this.isPlayerWeapon = isPlayerWeapon;
+        this.isDragon = false;
     }
-
     draw() {
         ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         ctx.fillStyle = this.color; ctx.fill(); ctx.closePath();
     }
-
     update() {
         this.x += this.velX; this.y += this.velY;
         if (this.x < -50 || this.x > canvas.width + 50 || this.y < -50 || this.y > canvas.height + 50) {
@@ -337,14 +365,23 @@ class Projectile {
     }
 }
 
-class Fireball extends Projectile {
+class DragonProjectile extends Projectile {
     constructor(x, y, angle) {
         super(x, y, angle);
+        this.color = '#ffeb3b';
+        this.speed = 8;
+        this.isDragon = true;
+        this.hitsLeft = 1; // Tiro do dragão não fura alvo por padrão
+    }
+}
+
+class Fireball extends Projectile {
+    constructor(x, y, angle) {
+        super(x, y, angle, true);
         this.radius = 12;
         this.speed = 5;
         this.color = '#ff5722';
-        this.damageMultiplier = 3; 
-        this.piercesLeft = 999; 
+        this.hitsLeft = 999; 
     }
 }
 
@@ -384,12 +421,10 @@ class Enemy {
         this.xpDrop = 5;
         this.markedForDeletion = false;
     }
-
     draw() {
         ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         ctx.fillStyle = this.color; ctx.fill(); ctx.closePath();
     }
-
     update(dt) {
         const dx = player.x - this.x;
         const dy = player.y - this.y;
@@ -401,13 +436,25 @@ class Enemy {
             player.takeDamage(this.damage);
         }
     }
-    
     takeDamage(amount) {
         this.hp -= amount;
         if (this.hp <= 0 && !this.markedForDeletion) {
             this.markedForDeletion = true;
             xpGems.push(new XPGem(this.x, this.y, this.xpDrop));
         }
+    }
+}
+
+// O Tanque Lento
+class GreenBall extends Enemy {
+    constructor(x, y) {
+        super(x, y);
+        this.radius = 30; // Bem maior
+        this.speed = 0.5; // Muito lento (fácil de fugir)
+        this.color = '#4caf50'; 
+        // Aguenta exatamente 10 tiros básicos (10 de dano * 10 tiros)
+        this.hp = 10 * 10; 
+        this.xpDrop = 10;
     }
 }
 
@@ -422,7 +469,6 @@ class Boss extends Enemy {
         this.hp = this.maxHp;
         this.xpDrop = 25;
     }
-
     draw() {
         super.draw();
         ctx.fillStyle = '#000';
@@ -442,12 +488,10 @@ class MiniBoss extends Enemy {
         this.xpDrop = 15;
         this.shootTimer = 0;
     }
-
     draw() {
         ctx.fillStyle = this.color;
         ctx.fillRect(this.x - this.radius, this.y - this.radius, this.radius * 2, this.radius * 2);
     }
-
     update(dt) {
         this.shootTimer += dt;
         if (this.shootTimer >= 2000) { 
@@ -505,6 +549,28 @@ class Bomb {
     }
 }
 
+// Explosões geradas pela Bazuca
+class Explosion {
+    constructor(x, y, radius) {
+        this.x = x; this.y = y;
+        this.radius = radius;
+        this.timer = 150; 
+        this.maxTimer = 150;
+        this.markedForDeletion = false;
+    }
+    draw() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius * (1 - this.timer/this.maxTimer), 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 152, 0, 0.4)';
+        ctx.fill();
+        ctx.closePath();
+    }
+    update(dt) {
+        this.timer -= dt;
+        if (this.timer <= 0) this.markedForDeletion = true;
+    }
+}
+
 // ================= SISTEMAS CORE =================
 
 function spawnEnemy() {
@@ -519,6 +585,9 @@ function spawnEnemy() {
 
     if (survivalTime >= 80 && Math.random() < 0.10) {
         enemies.push(new MiniBoss(x, y));
+    } else if (Math.random() < 0.10) { 
+        // 10% de chance de spawnar a Bola Verde
+        enemies.push(new GreenBall(x, y));
     } else {
         enemies.push(new Enemy(x, y));
     }
@@ -573,6 +642,7 @@ function triggerLevelUp() {
 function selectSkill(key) {
     player.skills[key]++;
     
+    // Recuperar Vida recupera exatamente 10% do HP Máximo Imediatamente a cada escolha
     if (key === 'heal') {
         player.health = Math.min(player.maxHealth, player.health + (player.maxHealth * 0.10));
     }
@@ -592,13 +662,10 @@ function selectSkill(key) {
 // ================= LOOP DO JOGO =================
 
 function gameLoop(timestamp) {
-    // -----------------------------------------------------
-    // Trava do Menu Inicial (Não roda nada se não escolheu a plataforma)
     if (gamePausadoNoMenu) {
         requestAnimationFrame(gameLoop);
         return;
     }
-    // -----------------------------------------------------
 
     if (isGameOver) return;
     
@@ -628,9 +695,11 @@ function gameLoop(timestamp) {
 
     xpGems.forEach(xp => { xp.update(); xp.draw(); });
     bombs.forEach(b => { b.update(dt); b.draw(); });
+    explosions.forEach(exp => { exp.update(dt); exp.draw(); });
     
     player.update(dt);
     player.draw();
+    if (player.pet) player.pet.draw();
 
     projectiles.forEach(p => { p.update(); p.draw(); });
     enemyProjectiles.forEach(ep => { ep.update(); ep.draw(); });
@@ -645,14 +714,32 @@ function gameLoop(timestamp) {
             
             const dist = Math.hypot(proj.x - enemy.x, proj.y - enemy.y);
             if (dist < enemy.radius + proj.radius) {
-                proj.hitEnemies.add(enemy);
+                proj.hitEnemies.add(enemy); // Garante que a mesma bala só atinja esse inimigo 1x
                 
+                // Dano direto da bala (Bola de fogo tem dano extra)
                 let dmg = proj instanceof Fireball ? player.damage * 3 : player.damage;
                 enemy.takeDamage(dmg);
 
-                if (proj.piercesLeft > 0) {
-                    proj.piercesLeft--;
-                } else {
+                // Habilidade: Bazuca (Gatilho da Explosão em Área)
+                if (proj.isPlayerWeapon && player.skills.bazooka > 0 && !(proj instanceof Fireball)) {
+                    let aoeRadius = 40 + (player.skills.bazooka - 1) * 15;
+                    let aoeDamage = player.damage * 0.5; // Dano em área menor que o disparo direto
+                    
+                    explosions.push(new Explosion(enemy.x, enemy.y, aoeRadius));
+                    
+                    enemies.forEach(otherEnemy => {
+                        if (otherEnemy !== enemy) {
+                            let distAoE = Math.hypot(otherEnemy.x - enemy.x, otherEnemy.y - enemy.y);
+                            if (distAoE <= aoeRadius + otherEnemy.radius) {
+                                otherEnemy.takeDamage(aoeDamage);
+                            }
+                        }
+                    });
+                }
+
+                // Desconta furos disponíveis da bala
+                proj.hitsLeft--;
+                if (proj.hitsLeft <= 0) {
                     proj.markedForDeletion = true;
                 }
             }
@@ -664,6 +751,7 @@ function gameLoop(timestamp) {
     enemyProjectiles = enemyProjectiles.filter(p => !p.markedForDeletion);
     xpGems = xpGems.filter(x => !x.markedForDeletion);
     bombs = bombs.filter(b => !b.markedForDeletion);
+    explosions = explosions.filter(exp => !exp.markedForDeletion);
 
     requestAnimationFrame(gameLoop);
 }
@@ -681,48 +769,13 @@ canvas.addEventListener('mousedown', () => isMouseDown = true);
 canvas.addEventListener('mouseup', () => isMouseDown = false);
 canvas.addEventListener('mouseleave', () => isMouseDown = false); 
 
-// ================= FLUXO GERAL =================
-
-function initGame() {
-    player = new Player(canvas.width / 2, canvas.height / 2);
-    enemies = [];
-    projectiles = [];
-    enemyProjectiles = [];
-    xpGems = [];
-    bombs = [];
-    
-    isGameOver = false;
-    isPaused = false;
-    spawnTimer = 0;
-    currentSpawnRate = 1000;
-    nextBossTime = 40;
-    
-    gameOverScreen.classList.add('hidden');
-    levelUpScreen.classList.add('hidden');
-    
-    // Deixamos os timers como referência, mas o `iniciarJogo` resetará isso depois.
-    gameStartTime = performance.now();
-    lastFrameTime = performance.now();
-    updateUI();
-    
-    // Dá partida no loop de renderização (que ficará travado se estiver no menu)
-    requestAnimationFrame(gameLoop);
-}
-
 function endGame() {
     isGameOver = true;
     gameOverScreen.classList.remove('hidden');
-    document.getElementById('final-time').innerText = timerElement.innerText;
-    document.getElementById('final-level').innerText = player.level;
 }
 
-// Se perder, no restart precisa recomeçar o tempo e voltar ao mobile/pc correto
 restartBtn.addEventListener('click', () => {
-    initGame();
-    // Ao reiniciar, o menu não volta, então precisamos forçar o reset dos timers aqui.
-    gameStartTime = performance.now();
-    lastFrameTime = performance.now();
+    location.reload(); 
 });
 
-// Inicia o jogo
-initGame();
+requestAnimationFrame(gameLoop);
