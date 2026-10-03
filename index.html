@@ -11,16 +11,31 @@
         <!-- Interface de Usuário -->
         <div id="ui-layer">
             <div id="top-bar">
-                <span id="timer">00:00</span>
-                <div id="health-bg">
-                    <div id="health-bar"></div>
+                <div id="stats">
+                    <div><span id="timer">00:00</span> - <span id="level-display">Nível: 0</span></div>
+                    <div id="health-bg">
+                        <div id="health-bar"></div>
+                    </div>
                 </div>
+                <div id="skills-list"></div>
             </div>
             
+            <div id="xp-bg">
+                <div id="xp-bar"></div>
+            </div>
+            
+            <!-- Tela de Subida de Nível -->
+            <div id="level-up-screen" class="hidden clickable">
+                <h2>Subiu de Nível!</h2>
+                <p>Escolha uma habilidade:</p>
+                <div id="cards-container"></div>
+            </div>
+
             <!-- Tela de Fim de Jogo -->
-            <div id="game-over-screen" class="hidden">
+            <div id="game-over-screen" class="hidden clickable">
                 <h1>FIM DE JOGO</h1>
                 <p>Sobreviveu por: <span id="final-time">00:00</span></p>
+                <p>Nível alcançado: <span id="final-level">0</span></p>
                 <button id="restart-btn">Tentar Novamente</button>
             </div>
         </div>
