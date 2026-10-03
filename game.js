@@ -18,7 +18,7 @@ let mouseX = canvas.width / 2, mouseY = canvas.height / 2;
 let isMouseDown = false;
 
 // ==========================================
-// SISTEMA DE MENU, MÚSICA E MOBILE (MATADOR DE BOLAS)
+// SISTEMA DE MENU, MÚSICA E MOBILE
 // ==========================================
 
 let isMobileMode = false;
@@ -38,6 +38,20 @@ function iniciarJogo(mobile) {
     isMobileMode = mobile;
     gamePausadoNoMenu = false;
     
+    // CORREÇÃO: Inicializar o player e arrays que estavam faltando na inicialização!
+    player = new Player(canvas.width / 2, canvas.height / 2);
+    enemies = [];
+    projectiles = [];
+    enemyProjectiles = [];
+    xpGems = [];
+    bombs = [];
+    explosions = [];
+    survivalTime = 0;
+    spawnTimer = 0;
+    nextBossTime = 40;
+    isGameOver = false;
+    isPaused = false;
+    
     gameStartTime = performance.now();
     lastFrameTime = performance.now();
     
@@ -49,7 +63,7 @@ function iniciarJogo(mobile) {
         setupJoystick('base-right', 'stick-right', joyRight);
     }
     
-    bgMusic.play().catch(e => console.warn("Erro ao tocar música:", e));
+    bgMusic.play().catch(e => console.warn("Erro ao tocar música. Interação do usuário necessária.", e));
 }
 
 function setupJoystick(baseId, stickId, joyData) {
@@ -204,7 +218,6 @@ class Player {
         this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, this.x));
         this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, this.y));
 
-        // Velocidade de disparo controlada rigorosamente aqui
         let baseCooldown = 1000;
         let currentCooldown = baseCooldown / (1 + (this.skills.fireRate * 0.15)); 
         let isShooting = false;
@@ -227,7 +240,6 @@ class Player {
             this.lastShotTime = performance.now();
         }
 
-        // Habilidade: Chuva de Bombas
         if (this.skills.bombRain > 0) {
             let bombInterval = Math.max(2000, 7000 - ((this.skills.bombRain - 1) * 1000));
             if (performance.now() - this.lastBombTime >= bombInterval) {
@@ -238,7 +250,6 @@ class Player {
             }
         }
 
-        // Habilidade: Dragão Pet
         if (this.skills.dragon > 0) {
             if (!this.pet) this.pet = new Dragon(this.x, this.y);
             this.pet.update(dt);
@@ -248,7 +259,6 @@ class Player {
     fireWeapon(baseAngle) {
         this.shotCount++;
         
-        // Habilidade: Escopeta
         let projCount = 1 + this.skills.shotgun; 
         let spread = 0.25; 
         
@@ -260,7 +270,6 @@ class Player {
             projectiles.push(new Projectile(this.x, this.y, baseAngle + angleOffset, true));
         }
 
-        // Habilidade: Bola de Fogo (Gera uma aleatória sem depender da direção escolhida)
         if (this.skills.fireball > 0) {
             let fireballRequirement = Math.max(1, 8 - this.skills.fireball);
             if (this.shotCount % fireballRequirement === 0) {
@@ -279,7 +288,6 @@ class Player {
     }
 
     addXp(amount) {
-        // Multiplicador do XP em Dobro (0 stacks = 1x, 1 = 2x, 2 = 4x...)
         let multiplier = Math.pow(2, this.skills.doubleXp);
         this.xp += (amount * multiplier);
         
@@ -294,7 +302,6 @@ class Player {
     }
 }
 
-// O Pet Dragão
 class Dragon {
     constructor(x, y) {
         this.x = x; this.y = y;
@@ -303,11 +310,9 @@ class Dragon {
         this.lastShot = 0;
     }
     update(dt) {
-        // Segue o jogador (com leve atraso/inércia para ficar charmoso)
         this.x += (player.x - this.x) * 0.05;
         this.y += (player.y - this.y) * 0.05;
 
-        // Ataca o inimigo mais próximo
         let attackSpeedMod = 1 + ((player.skills.dragon - 1) * 0.25);
         let currentCooldown = 2000 / attackSpeedMod;
 
@@ -330,7 +335,6 @@ class Dragon {
         return nearest;
     }
     draw() {
-        // Por enquanto usando um quadrado distinto para o Dragão
         ctx.fillStyle = this.color;
         ctx.fillRect(this.x - this.size/2, this.y - this.size/2, this.size, this.size);
     }
@@ -347,7 +351,6 @@ class Projectile {
         this.velX = Math.cos(angle) * this.speed;
         this.velY = Math.sin(angle) * this.speed;
         
-        // Habilidade: Bala Perfurante (0 stacks = 1 hit, 1 stack = 2 hits, 2 stacks = 4 hits)
         this.hitsLeft = player.skills.piercing > 0 ? player.skills.piercing * 2 : 1;
         this.hitEnemies = new Set(); 
         this.isPlayerWeapon = isPlayerWeapon;
@@ -371,7 +374,7 @@ class DragonProjectile extends Projectile {
         this.color = '#ffeb3b';
         this.speed = 8;
         this.isDragon = true;
-        this.hitsLeft = 1; // Tiro do dragão não fura alvo por padrão
+        this.hitsLeft = 1;
     }
 }
 
@@ -445,14 +448,12 @@ class Enemy {
     }
 }
 
-// O Tanque Lento
 class GreenBall extends Enemy {
     constructor(x, y) {
         super(x, y);
-        this.radius = 30; // Bem maior
-        this.speed = 0.5; // Muito lento (fácil de fugir)
+        this.radius = 30;
+        this.speed = 0.5;
         this.color = '#4caf50'; 
-        // Aguenta exatamente 10 tiros básicos (10 de dano * 10 tiros)
         this.hp = 10 * 10; 
         this.xpDrop = 10;
     }
@@ -549,7 +550,6 @@ class Bomb {
     }
 }
 
-// Explosões geradas pela Bazuca
 class Explosion {
     constructor(x, y, radius) {
         this.x = x; this.y = y;
@@ -586,7 +586,6 @@ function spawnEnemy() {
     if (survivalTime >= 80 && Math.random() < 0.10) {
         enemies.push(new MiniBoss(x, y));
     } else if (Math.random() < 0.10) { 
-        // 10% de chance de spawnar a Bola Verde
         enemies.push(new GreenBall(x, y));
     } else {
         enemies.push(new Enemy(x, y));
@@ -594,6 +593,7 @@ function spawnEnemy() {
 }
 
 function updateUI() {
+    if (!player) return; // Segurança contra atualização antes de iniciar o jogo
     const m = Math.floor(survivalTime / 60).toString().padStart(2, '0');
     const s = Math.floor(survivalTime % 60).toString().padStart(2, '0');
     timerElement.innerText = `${m}:${s}`;
@@ -642,7 +642,6 @@ function triggerLevelUp() {
 function selectSkill(key) {
     player.skills[key]++;
     
-    // Recuperar Vida recupera exatamente 10% do HP Máximo Imediatamente a cada escolha
     if (key === 'heal') {
         player.health = Math.min(player.maxHealth, player.health + (player.maxHealth * 0.10));
     }
@@ -714,16 +713,14 @@ function gameLoop(timestamp) {
             
             const dist = Math.hypot(proj.x - enemy.x, proj.y - enemy.y);
             if (dist < enemy.radius + proj.radius) {
-                proj.hitEnemies.add(enemy); // Garante que a mesma bala só atinja esse inimigo 1x
+                proj.hitEnemies.add(enemy);
                 
-                // Dano direto da bala (Bola de fogo tem dano extra)
                 let dmg = proj instanceof Fireball ? player.damage * 3 : player.damage;
                 enemy.takeDamage(dmg);
 
-                // Habilidade: Bazuca (Gatilho da Explosão em Área)
                 if (proj.isPlayerWeapon && player.skills.bazooka > 0 && !(proj instanceof Fireball)) {
                     let aoeRadius = 40 + (player.skills.bazooka - 1) * 15;
-                    let aoeDamage = player.damage * 0.5; // Dano em área menor que o disparo direto
+                    let aoeDamage = player.damage * 0.5;
                     
                     explosions.push(new Explosion(enemy.x, enemy.y, aoeRadius));
                     
@@ -737,7 +734,6 @@ function gameLoop(timestamp) {
                     });
                 }
 
-                // Desconta furos disponíveis da bala
                 proj.hitsLeft--;
                 if (proj.hitsLeft <= 0) {
                     proj.markedForDeletion = true;
@@ -760,10 +756,14 @@ function gameLoop(timestamp) {
 
 window.addEventListener('keydown', (e) => { if(keys.hasOwnProperty(e.key)) keys[e.key] = true; });
 window.addEventListener('keyup', (e) => { if(keys.hasOwnProperty(e.key)) keys[e.key] = false; });
+
+// CORREÇÃO: Mouse agora calcula a escala do CSS de forma responsiva para mirar direito
 canvas.addEventListener('mousemove', (e) => {
     const rect = canvas.getBoundingClientRect();
-    mouseX = e.clientX - rect.left;
-    mouseY = e.clientY - rect.top;
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    mouseX = (e.clientX - rect.left) * scaleX;
+    mouseY = (e.clientY - rect.top) * scaleY;
 });
 canvas.addEventListener('mousedown', () => isMouseDown = true);
 canvas.addEventListener('mouseup', () => isMouseDown = false);
@@ -771,6 +771,11 @@ canvas.addEventListener('mouseleave', () => isMouseDown = false);
 
 function endGame() {
     isGameOver = true;
+    
+    // CORREÇÃO: Atualiza o placar final antes de mostrar
+    document.getElementById('final-time').innerText = timerElement.innerText;
+    document.getElementById('final-level').innerText = player.level;
+    
     gameOverScreen.classList.remove('hidden');
 }
 
